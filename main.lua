@@ -1,7 +1,7 @@
 local vector = require("Resources.Lib.brinevector")
 local render_resolution = {
-    width = 1280/2,
-    height = 700/2
+    width = 400,
+    height = 400
 }
 
 local jfa_shader 
@@ -31,23 +31,19 @@ function love.load()
     seed_shader = love.graphics.newShader("Resources/Shaders/seed.glsl")
     distance_field_shader = love.graphics.newShader("Resources/Shaders/distancefield.glsl")
     gi_shader = love.graphics.newShader("Resources/Shaders/raymarch.glsl")
-    passes = 1
+    local max = math.max(w, h)
+    passes = math.ceil(math.log(max))
 
+    canvas_a =        love.graphics.newCanvas(w, h, {})
+    canvas_b =        love.graphics.newCanvas(w, h, {})
+    drawing_canvas =  love.graphics.newCanvas(w, h, {msaa=2})
+    canvas_jfa =      love.graphics.newCanvas(w, h, {})
+    canvas_distance = love.graphics.newCanvas(w, h, {})
+    canvas_gi =       love.graphics.newCanvas(w, h, {})
+    canvas_gi_prev =  love.graphics.newCanvas(w, h, {})
 
-    
-    canvas_a = love.graphics.newCanvas(w, h)
-    canvas_b = love.graphics.newCanvas(w, h)
-    drawing_canvas = love.graphics.newCanvas(w, h)
-    canvas_jfa = love.graphics.newCanvas(w, h)
-    canvas_distance = love.graphics.newCanvas(w, h)
-    canvas_gi = love.graphics.newCanvas(w, h)
-    canvas_gi_prev = love.graphics.newCanvas(w, h)
-
-    local screen = vector(w, h)
-    local aspect = screen / math.max(screen.x, screen.y)
-    print("Aspect Ratio: " .. aspect.x .. ", " .. aspect.y)
-    --jfa_shader:send("aspect", {aspect.x, aspect.y})
     jfa_shader:send("oneOverSize", {1.0 / w, 1.0 / h})
+
     gi_shader:send("showNoise", true)
     gi_shader:send("showGrain", false)
     gi_shader:send("useTemporalAccum", false)
@@ -87,14 +83,13 @@ function redraw()
     canvas_b:renderTo(function()
         love.graphics.setShader(seed_shader)
             love.graphics.clear(0, 0, 0, 1)
+            love.graphics.setBlendMode("alpha", "premultiplied")
+
             love.graphics.draw(drawing_canvas)
         love.graphics.setShader()
     end)
     
-    local max = math.max(w, h)
-    local steps = math.ceil(math.log(max))
-    local stepSize = 1;
-
+love.graphics.setBlendMode("alpha")
     local a, b
     for i = 1, passes do
         if a_or_b then 
@@ -104,13 +99,14 @@ function redraw()
             a = canvas_b
             b = canvas_a
         end
-        jfa_shader:send("stepsize", math.pow(2, passes- i))
+        jfa_shader:send("stepsize", math.pow(2, passes - i - 1))
         love.graphics.setCanvas(a)
             love.graphics.setShader(jfa_shader)
                 love.graphics.clear(0, 0, 0, 1)
                 love.graphics.draw(b)
             love.graphics.setShader()
         love.graphics.setCanvas()
+
         a_or_b = not a_or_b
         if a_or_b then canvas_jfa = a else canvas_jfa = b end
     end

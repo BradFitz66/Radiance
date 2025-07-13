@@ -13,7 +13,7 @@ vec4 effect(vec4 c, Image tex, vec2 tc, vec2 sc) {
 
     for (float y = -1.0; y <= 1.0; y += 1.0) {
         for (float x = -1.0; x <= 1.0; x += 1.0) {
-            vec2 sampleUV = tc + vec2(x, y) * stepsize * oneOverSize.xy;
+            vec2 sampleUV = tc + vec2(x, y) * stepsize * oneOverSize;
 
 
             vec4 sampleValue = Texel(tex, sampleUV);

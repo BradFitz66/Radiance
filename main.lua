@@ -22,7 +22,6 @@ local canvas_b
 local canvas_jfa
 local canvas_distance
 local canvas_gi
-local canvas_gi_prev
 local drawing_color = {1, 1, 1, 1}
 
 function love.load()
@@ -31,28 +30,24 @@ function love.load()
     seed_shader = love.graphics.newShader("Resources/Shaders/seed.glsl")
     distance_field_shader = love.graphics.newShader("Resources/Shaders/distancefield.glsl")
     gi_shader = love.graphics.newShader("Resources/Shaders/raymarch.glsl")
-    local max = math.max(w, h)
-    passes = math.ceil(math.log(max))
+    passes = math.ceil(math.log(math.max(w, h)));
 
     canvas_a =        love.graphics.newCanvas(w, h, {})
     canvas_b =        love.graphics.newCanvas(w, h, {})
-    drawing_canvas =  love.graphics.newCanvas(w, h, {msaa=2})
+    drawing_canvas =  love.graphics.newCanvas(w, h, {})
     canvas_jfa =      love.graphics.newCanvas(w, h, {})
     canvas_distance = love.graphics.newCanvas(w, h, {})
     canvas_gi =       love.graphics.newCanvas(w, h, {})
-    canvas_gi_prev =  love.graphics.newCanvas(w, h, {})
 
     jfa_shader:send("oneOverSize", {1.0 / w, 1.0 / h})
 
     gi_shader:send("showNoise", true)
     gi_shader:send("showGrain", false)
     gi_shader:send("useTemporalAccum", false)
-    gi_shader:send("enableSun", false)
+    gi_shader:send("enableSun", true)
     gi_shader:send("maxSteps", 64)
     gi_shader:send("rayCount", 32)
     gi_shader:send("sunAngle", 1.0)
-
-
 end
 
 
@@ -84,12 +79,11 @@ function redraw()
         love.graphics.setShader(seed_shader)
             love.graphics.clear(0, 0, 0, 1)
             love.graphics.setBlendMode("alpha", "premultiplied")
-
             love.graphics.draw(drawing_canvas)
         love.graphics.setShader()
     end)
     
-love.graphics.setBlendMode("alpha")
+    love.graphics.setBlendMode("alpha")
     local a, b
     for i = 1, passes do
         if a_or_b then 
@@ -99,7 +93,7 @@ love.graphics.setBlendMode("alpha")
             a = canvas_b
             b = canvas_a
         end
-        jfa_shader:send("stepsize", math.pow(2, passes - i - 1))
+        jfa_shader:send("stepsize", math.pow(2, passes - i))
         love.graphics.setCanvas(a)
             love.graphics.setShader(jfa_shader)
                 love.graphics.clear(0, 0, 0, 1)
@@ -120,7 +114,6 @@ love.graphics.setBlendMode("alpha")
     love.graphics.setCanvas()
 
     gi_shader:send("distanceTexture", canvas_distance)
-    gi_shader:send("lastFrameTexture", canvas_gi_prev)
 
     love.graphics.setCanvas(canvas_gi)
         love.graphics.setShader(gi_shader)
@@ -173,6 +166,7 @@ function drawLine(fromX, fromY, toX, toY)
 end
 
 function love.update(dt)
+    redraw()
     --Set title to show FPS
     love.window.setTitle("FPS: " .. love.timer.getFPS())
     local mouseX, mouseY = love.mouse.getPosition()
@@ -205,12 +199,10 @@ function love.update(dt)
             end
             love.graphics.setColor(1, 1, 1, 1)
         end)
-        redraw()
         startX, startY = toX, toY
     else
         toX, toY = 0,0
     end
-
 end
 
 

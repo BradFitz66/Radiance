@@ -76,7 +76,7 @@ vec4 effect(vec4 c, Image t, vec2 tc, vec2 sc) {
                 // Go the direction we're traveling (with noise)
                 sampleUv += rayDirection * dist;
                 
-                if (outOfBounds(sampleUv)) break;
+                //if (outOfBounds(sampleUv)) break;
                 
                 if (dist < EPS) {
                   vec4 sampleColor = Texel(t, sampleUv);

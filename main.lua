@@ -22,7 +22,10 @@ local canvas_b
 local canvas_jfa
 local canvas_distance
 local canvas_gi
+local canvas_seed;
 local drawing_color = {1, 1, 1, 1}
+
+local cur_pass = "GI"
 
 function love.load()
     local w,h = render_resolution.width, render_resolution.height
@@ -32,16 +35,18 @@ function love.load()
     gi_shader = love.graphics.newShader("Resources/Shaders/raymarch.glsl")
     passes = math.ceil(math.log(math.max(w, h)));
 
-    canvas_a =        love.graphics.newCanvas(w, h, {msaa=4})
-    canvas_b =        love.graphics.newCanvas(w, h, {msaa=4})
-    drawing_canvas =  love.graphics.newCanvas(w, h, {msaa=4})
-    canvas_jfa =      love.graphics.newCanvas(w, h, {msaa=4})
-    canvas_distance = love.graphics.newCanvas(w, h, {msaa=4})
-    canvas_gi =       love.graphics.newCanvas(w, h, {msaa=4})
-    local aspect = vector(w, h) / math.max(w, h)
+    canvas_a =        love.graphics.newCanvas(w, h, {})
+    canvas_b =        love.graphics.newCanvas(w, h, {})
+    drawing_canvas =  love.graphics.newCanvas(w, h, {})
+    canvas_jfa =      love.graphics.newCanvas(w, h, {})
+    canvas_distance = love.graphics.newCanvas(w, h, {})
+    canvas_gi =       love.graphics.newCanvas(w, h, {})
+    canvas_seed =     love.graphics.newCanvas(w, h, {})
 
-    --jfa_shader:send("oneOverSize", {1.0 / w, 1.0 / h})
+    local aspect = vector(w, h) / math.max(w, h)
+    local size = vector(w, h)
     jfa_shader:send("aspect", {aspect.x, aspect.y})
+
     gi_shader:send("showNoise", true)
     gi_shader:send("showGrain", false)
     gi_shader:send("useTemporalAccum", false)
@@ -58,42 +63,61 @@ function love.draw()
 
     if drawing_pass == 0 then
         love.graphics.draw(canvas_gi,0,0)
+        cur_pass = "GI"
     elseif drawing_pass == 1 then
         love.graphics.draw(canvas_distance, 0, 0)
+        cur_pass = "Distance Field"
     elseif drawing_pass == 2 then
         love.graphics.draw(canvas_jfa, 0, 0)
+        cur_pass = "Jump Flood"
+    elseif drawing_pass == 3 then
+        love.graphics.draw(canvas_seed, 0, 0)
+        cur_pass = "Seed"
     end
 
 --Draw UI
     love.graphics.circle("line", mx, my, brushSize)
     love.graphics.print("Passes: " .. passes, 10, 10)
+    love.graphics.print("Current Pass: " .. cur_pass, 10, 30)
 
+    
+
+    redraw()
     
 end
 
 
 function redraw()
-    local w,h = render_resolution.width, render_resolution.height
-    local a_or_b = true
+    love.graphics.setColor(1, 1, 1, 1)
 
-    canvas_b:renderTo(function()
+    canvas_seed:renderTo(function()
         love.graphics.setShader(seed_shader)
-            love.graphics.setBlendMode("alpha", "premultiplied")
-            love.graphics.clear(0, 0, 0, 1)
+            love.graphics.clear(0, 0, 0, 0)
             love.graphics.draw(drawing_canvas)
         love.graphics.setShader()
     end)
-    
-    love.graphics.setBlendMode("alpha")
+
+    canvas_b:renderTo(function()
+        love.graphics.clear(0, 0, 0, 0)
+        love.graphics.draw(canvas_seed)
+    end)
+
+
     local a, b = canvas_a, canvas_b
+
+    
+
     local stepsize = 1
     for i = 1, passes do
-        stepsize = stepsize * 0.5
-        
+        stepsize = stepsize / 2
+    end
+    local a_or_b = true
+    while stepsize <= 1 do
+        stepsize = stepsize * 2
         jfa_shader:send("stepsize", stepsize)
         love.graphics.setCanvas(a)
             love.graphics.setShader(jfa_shader)
-                love.graphics.clear(0, 0, 0, 1)
+                love.graphics.clear(0, 0, 0, 0)
                 love.graphics.draw(b)
             love.graphics.setShader()
         love.graphics.setCanvas()
@@ -103,10 +127,9 @@ function redraw()
         a, b = b, a
     end
 
-
     love.graphics.setCanvas(canvas_distance)
         love.graphics.setShader(distance_field_shader)
-            love.graphics.clear(0, 0, 0, 1)
+            love.graphics.clear(0, 0, 0, 0)
             love.graphics.draw(canvas_jfa)
         love.graphics.setShader()
     love.graphics.setCanvas()
@@ -115,7 +138,7 @@ function redraw()
 
     love.graphics.setCanvas(canvas_gi)
         love.graphics.setShader(gi_shader)
-            love.graphics.clear(0, 0, 0, 1)
+            love.graphics.clear(0, 0, 0, 0)
             love.graphics.draw(drawing_canvas)
         love.graphics.setShader()
     love.graphics.setCanvas()
@@ -191,12 +214,12 @@ function love.update(dt)
         drawing_canvas:renderTo(function()
             love.graphics.setColor(drawing_color)
             drawLine(startX, startY, toX, toY)
-            if (startX == toX and startY == toY) then
+            if(toX == startX and toY == startY) then
                 love.graphics.circle('fill', toX, toY, brushSize)
             end
-            redraw()
             love.graphics.setColor(1, 1, 1, 1)
         end)
+        redraw()
         startX, startY = toX, toY
     else
         toX, toY = 0,0
@@ -230,7 +253,7 @@ end
 function love.keypressed(key)
     --Redraw when space is pressed
     if key == "space" then
-        drawing_pass = (drawing_pass + 1) % 3
+        drawing_pass = (drawing_pass + 1) % 4
     end
     --Increase passes when up arrow is pressed
     if key == "up" then
